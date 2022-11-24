@@ -1,57 +1,44 @@
 #!/bin/bash
-typeprompt=$(GDK_BACKEND=x11 yad --class=womic --form --field=":CB" --text="Select Connection Type" --width=300 --height=120 Bluetooth\!Wi-Fi --field="Load aloop module (requires sudo):CHK" TRUE --title="WO Mic Client")
-type=${typeprompt%%|*}
-loadaloop=${typeprompt#$type*}
-loadaloop=${loadaloop:1:(-1)}
+typeprompt=$(GDK_BACKEND=x11 yad --class=womic --title="WO Mic Client" --form --field=":CB" --text="Select Connection Type" --width=300 --height=120 Bluetooth\!Wi-Fi --num-output --field="Load aloop module (requires sudo):CHK" 1 --bool-fmt=1)
+type=${typeprompt::1} #1:Bluetooth,2:Wi-FI
+loadaloop=${typeprompt:2:(-1)}
 
-
-if [[ $type == "Bluetooth" ]]; then
-	devicescommand=$(bluetoothctl devices)
+if [[ $type -eq 1 ]]; then
+	listdevices=$(bluetoothctl devices)
 	macs=()
-	devicenames=()
-	isnextmac=0
-	devicestring=""
-	firstiteration=1
-	for x in $devicescommand; do
+	names=()
+	m=0
+	d=-1
+	for x in $listdevices; do
 		if [[ $x == "Device" ]]; then
-			if [[ $firstiteration -eq 1 ]]; then
-				firstiteration=0
-			else
-				devicestring=${devicestring:0:(-1)}
-				devicenames+=( "$devicestring" )
-				devicestring=""
-			fi
-			isnextmac=1
+			((d++))
+			m=1
 		else
-			if [[ $isnextmac -eq 1 ]]; then
-				isnextmac=0
-				macs+=( "$x" )
+			if [[ $m -eq 1 ]]; then
+				m=0
+				macs+=("$x")
 			else
-				devicestring+="$x "
+				names[d]+="$x "
 			fi
 		fi
 	done
-	devicestring=${devicestring:0:(-1)}
-	devicenames+=( "$devicestring" )
-	devicestring=$(IFS=! ; echo "${devicenames[*]}")
-	deviceprompt=$(GDK_BACKEND=x11 yad --title="WO Mic Client" --class="womic" --form --field=":CB" "$devicestring" --text="Select Device"  --num-output --field="Load aloop module (requires sudo):CHK" "$loadaloop")
-	device=${deviceprompt%%|*}
-	loadaloop=${deviceprompt#$device*}
-	loadaloop=${loadaloop:1:(-1)}
-	if [[ $loadaloop == "TRUE" ]]; then
+	formatted=$(IFS=! ; echo "${names[*]}")
+	prompt=$(GDK_BACKEND=x11 yad --title="WO Mic Client" --class="womic" --form --field=":CB" "$formatted" --text="Select Device"  --num-output --field="Load aloop module (requires sudo):CHK" "$loadaloop" --bool-fmt=1)
+	macindex=$((${prompt::1}-1))
+	loadaloop=${prompt:2:(-1)}
+	if [[ $loadaloop -eq 1 ]]; then
 		pkexec modprobe snd-aloop
 	fi
-	macindex=$device-1
-	device=${macs[$macindex]}
-	connect=$(micclient -t Bluetooth "$device") &
-elif [[ $type == "Wi-Fi" ]]; then
-	ipaddress=$(hostname -I)
-	deviceprompt=$(GDK_BACKEND=x11 yad --title="WO Mic Client" --class="womic" --form --field="" "$ipaddress" --text="Enter device IP" --field="Load aloop module (requires sudo):CHK" "$loadaloop")
-	device=${deviceprompt%%|*}
-	loadaloop=${deviceprompt#$device*}
-	loadaloop=${loadaloop:1:(-1)}
-	if [[ $loadaloop == "TRUE" ]]; then
+	mac=${macs[$macindex]}
+	connect=$(micclient -t Bluetooth "$mac") &
+
+elif [[ $type -eq 2 ]]; then
+	sampleip=$(hostname -I)
+	prompt=$(GDK_BACKEND=x11 yad --title="WO Mic Client" --class="womic" --form --field="" "$sampleip" --text="Enter device IP" --field="Load aloop module (requires sudo):CHK" "$loadaloop" --bool-fmt=1)
+	ip=${prompt:0:(-3)}
+	loadaloop=${prompt:(-2):(-1)}
+	if [[ $loadaloop -eq 1 ]]; then
 		pkexec modprobe snd-aloop
 	fi
-	connect=$(micclient -t WIFI "$device") &
+	connect=$(micclient -t WIFI "$ip") &
 fi
