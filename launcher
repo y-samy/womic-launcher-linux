@@ -4,7 +4,7 @@ type=${typeprompt::1} #1:Bluetooth,2:Wi-FI
 loadaloop=${typeprompt:2:(-1)}
 
 if [[ $type -eq 1 ]]; then
-	listdevices=$(bluetoothctl devices)
+	listdevices=$(bluetoothctl devices Paired)
 	macs=()
 	names=()
 	m=0
